@@ -85,6 +85,17 @@ class Ghost {
                     <div class="ghost_extra_button" onClick="openWikiPath('known-bugs#${data.ghost.replace(" ","-")}-bugs')">[{{known_bugs}}]</div>
                     ${document.getElementById("wiki-extra-"+data.ghost.replace(" ","-").toLowerCase()) ? "<div class=\"ghost_extra_button\" onClick=\"openWikiPath('ghost-data.extra-"+data.ghost.replace(" ","-").toLowerCase()+"')\">[{{more_details}}]</div>" : ''}
                 </div>
+            </div>            
+            <div class="personal-ghost-notes" onpointerdown="event.stopPropagation()" onpointerup="event.stopPropagation()" onclick="event.stopPropagation()">
+                <label for="personal-note-${data.ghost}">My Notes</label>
+                <textarea
+                    class="ghost-personal-notes"
+                    id="personal-note-${data.ghost}"
+                    data-ghost-id="${data.ghost}"
+                    placeholder="Add your own observations, tests and reminders..."
+                    rows="3"
+                ></textarea>
+                <div class="personal-notes-status" aria-live="polite">Saved locally in this browser</div>
             </div>
             <div class="ghost_clear">
                 <img class="card_icon card_icon_select" title="{{select_ghost}}" src="imgs/select.png" onclick="select(this.parentElement.parentElement)">
@@ -255,4 +266,78 @@ class Ghost {
             ? new_num.replace(".", ",")
             : new_num;
     }
-}
+}// Personal ghost notes: save and restore notes in this browser.
+(function () {
+    const storagePrefix = "liv-phasmo-ghost-note-";
+
+    function restoreGhostNotes(root) {
+        root.querySelectorAll(".ghost-personal-notes").forEach(function (box) {
+            const ghostId = box.dataset.ghostId;
+            if (!ghostId) return;
+
+            try {
+                const savedNote = localStorage.getItem(storagePrefix + ghostId);
+                if (savedNote !== null && box.value !== savedNote) {
+                    box.value = savedNote;
+                }
+            } catch (error) {
+                console.warn("Could not restore personal ghost notes.", error);
+            }
+        });
+    }
+
+    document.addEventListener("input", function (event) {
+        const box = event.target;
+
+        if (!box.matches(".ghost-personal-notes")) return;
+
+        const ghostId = box.dataset.ghostId;
+        if (!ghostId) return;
+
+        try {
+            localStorage.setItem(storagePrefix + ghostId, box.value);
+
+            const status = box.parentElement.querySelector(
+                ".personal-notes-status"
+            );
+
+            if (status) status.textContent = "Saved locally in this browser";
+        } catch (error) {
+            const status = box.parentElement.querySelector(
+                ".personal-notes-status"
+            );
+
+            if (status) status.textContent = "Unable to save notes";
+            console.warn("Could not save personal ghost notes.", error);
+        }
+    });
+
+    function initialiseNotes() {
+        restoreGhostNotes(document);
+
+        const observer = new MutationObserver(function (mutations) {
+            mutations.forEach(function (mutation) {
+                mutation.addedNodes.forEach(function (node) {
+                    if (node.nodeType === 1) {
+                        if (node.matches(".ghost-personal-notes")) {
+                            restoreGhostNotes(node.parentElement);
+                        } else {
+                            restoreGhostNotes(node);
+                        }
+                    }
+                });
+            });
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initialiseNotes);
+    } else {
+        initialiseNotes();
+    }
+})();
